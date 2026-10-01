@@ -1,0 +1,350 @@
+// Core data model for a single-restaurant-per-order food delivery service.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  CUSTOMER
+  RESTAURANT_OWNER
+  DRIVER
+  ADMIN
+}
+
+enum RestaurantStatus {
+  PENDING
+  ACTIVE
+  PAUSED
+  CLOSED
+}
+
+enum OrderStatus {
+  PLACED
+  CONFIRMED
+  PREPARING
+  READY_FOR_PICKUP
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  AUTHORIZED
+  PAID
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum PaymentMethod {
+  CARD
+  CASH
+  WALLET
+}
+
+enum DeliveryStatus {
+  PENDING
+  ASSIGNED
+  ACCEPTED
+  PICKED_UP
+  COMPLETED
+  CANCELLED
+}
+
+enum DriverAvailability {
+  OFFLINE
+  ONLINE
+  ON_DELIVERY
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  phone        String?  @unique
+  role         UserRole @default(CUSTOMER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  addresses       Address[]
+  carts           Cart[]
+  orders          Order[]          @relation("CustomerOrders")
+  ownedRestaurants Restaurant[]
+  driverProfile   DriverProfile?
+
+  @@index([role])
+}
+
+model Address {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @db.Uuid
+  label        String?
+  street       String
+  apartment    String?
+  city         String
+  region       String?
+  postalCode   String?
+  country      String
+  instructions String?
+  latitude     Decimal? @db.Decimal(9, 6)
+  longitude    Decimal? @db.Decimal(9, 6)
+  isDefault    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders Order[]
+
+  @@index([userId])
+}
+
+model Restaurant {
+  id               String           @id @default(uuid()) @db.Uuid
+  ownerId          String           @db.Uuid
+  name             String
+  description      String?
+  phone            String?
+  email            String?
+  street           String
+  city             String
+  region           String?
+  postalCode       String?
+  country          String
+  latitude         Decimal?         @db.Decimal(9, 6)
+  longitude        Decimal?         @db.Decimal(9, 6)
+  status           RestaurantStatus @default(PENDING)
+  cuisine          String?
+  imageUrl         String?
+  isAcceptingOrders Boolean          @default(false)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  owner      User             @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  categories MenuCategory[]
+  menuItems  MenuItem[]
+  carts      Cart[]
+  orders     Order[]
+
+  @@index([ownerId])
+  @@index([status, city])
+  @@index([isAcceptingOrders])
+}
+
+model MenuCategory {
+  id           String   @id @default(uuid()) @db.Uuid
+  restaurantId String   @db.Uuid
+  name         String
+  description  String?
+  sortOrder    Int      @default(0)
+  isAvailable  Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  menuItems  MenuItem[]
+
+  @@unique([restaurantId, name])
+  @@index([restaurantId, sortOrder])
+}
+
+model MenuItem {
+  id           String   @id @default(uuid()) @db.Uuid
+  restaurantId String   @db.Uuid
+  categoryId   String?  @db.Uuid
+  name         String
+  description  String?
+  price        Decimal  @db.Decimal(10, 2)
+  imageUrl     String?
+  isAvailable  Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  restaurant Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  category   MenuCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+
+  @@index([restaurantId, isAvailable])
+  @@index([categoryId])
+}
+
+// Each cart belongs to one restaurant; the unique pair keeps one cart per customer per restaurant.
+model Cart {
+  id           String   @id @default(uuid()) @db.Uuid
+  customerId   String   @db.Uuid
+  restaurantId String   @db.Uuid
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  customer   User       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  items      CartItem[]
+
+  @@unique([customerId, restaurantId])
+  @@index([customerId])
+}
+
+model CartItem {
+  id         String   @id @default(uuid()) @db.Uuid
+  cartId     String   @db.Uuid
+  menuItemId String   @db.Uuid
+  quantity   Int      @default(1)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  cart     Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Restrict)
+
+  @@unique([cartId, menuItemId])
+  @@index([menuItemId])
+}
+
+model Order {
+  id                    String      @id @default(uuid()) @db.Uuid
+  customerId            String      @db.Uuid
+  restaurantId          String      @db.Uuid
+  deliveryAddressId     String?     @db.Uuid
+  status                OrderStatus @default(PLACED)
+  currency              String      @default("USD") @db.VarChar(3)
+  subtotal              Decimal     @db.Decimal(10, 2)
+  deliveryFee           Decimal     @default(0) @db.Decimal(10, 2)
+  tax                   Decimal     @default(0) @db.Decimal(10, 2)
+  tip                   Decimal     @default(0) @db.Decimal(10, 2)
+  total                 Decimal     @db.Decimal(10, 2)
+  deliveryStreet        String
+  deliveryApartment     String?
+  deliveryCity          String
+  deliveryRegion        String?
+  deliveryPostalCode    String?
+  deliveryCountry       String
+  deliveryInstructions  String?
+  placedAt              DateTime    @default(now())
+  confirmedAt           DateTime?
+  deliveredAt           DateTime?
+  cancelledAt           DateTime?
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+
+  customer        User       @relation("CustomerOrders", fields: [customerId], references: [id], onDelete: Restrict)
+  restaurant      Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Restrict)
+  deliveryAddress Address?   @relation(fields: [deliveryAddressId], references: [id], onDelete: SetNull)
+  items           OrderItem[]
+  payment         Payment?
+  delivery        Delivery?
+
+  @@index([customerId, createdAt])
+  @@index([restaurantId, status, createdAt])
+  @@index([status, createdAt])
+}
+
+// Product name and price are copied here so a later menu edit cannot change history.
+model OrderItem {
+  id             String   @id @default(uuid()) @db.Uuid
+  orderId        String   @db.Uuid
+  menuItemId     String?  @db.Uuid
+  itemName       String
+  unitPrice      Decimal  @db.Decimal(10, 2)
+  quantity       Int
+  lineTotal      Decimal  @db.Decimal(10, 2)
+  specialRequest String?
+
+  order    Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+}
+
+model Payment {
+  id                String        @id @default(uuid()) @db.Uuid
+  orderId           String        @unique @db.Uuid
+  method            PaymentMethod
+  status            PaymentStatus @default(PENDING)
+  amount            Decimal       @db.Decimal(10, 2)
+  currency          String        @default("USD") @db.VarChar(3)
+  provider          String?
+  providerPaymentId String?       @unique
+  failureReason     String?
+  paidAt            DateTime?
+  refundedAt        DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+}
+
+model DriverProfile {
+  id             String             @id @default(uuid()) @db.Uuid
+  userId         String             @unique @db.Uuid
+  availability   DriverAvailability @default(OFFLINE)
+  vehicleType    String?
+  vehicleDetails String?
+  licenseNumber  String?            @unique
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveries Delivery[]
+  locations  DriverLocation[]
+
+  @@index([availability])
+}
+
+model Delivery {
+  id               String         @id @default(uuid()) @db.Uuid
+  orderId          String         @unique @db.Uuid
+  driverId         String?        @db.Uuid
+  status           DeliveryStatus @default(PENDING)
+  requestedAt      DateTime       @default(now())
+  assignedAt       DateTime?
+  acceptedAt       DateTime?
+  pickedUpAt       DateTime?
+  completedAt      DateTime?
+  estimatedAt      DateTime?
+  pickupLatitude   Decimal?       @db.Decimal(9, 6)
+  pickupLongitude  Decimal?       @db.Decimal(9, 6)
+  dropoffLatitude  Decimal?       @db.Decimal(9, 6)
+  dropoffLongitude Decimal?       @db.Decimal(9, 6)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  order   Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  driver  DriverProfile? @relation(fields: [driverId], references: [id], onDelete: SetNull)
+  updates DeliveryStatusUpdate[]
+
+  @@index([status, requestedAt])
+  @@index([driverId, status])
+}
+
+model DriverLocation {
+  id        String   @id @default(uuid()) @db.Uuid
+  driverId  String   @db.Uuid
+  latitude  Decimal  @db.Decimal(9, 6)
+  longitude Decimal  @db.Decimal(9, 6)
+  recordedAt DateTime @default(now())
+
+  driver DriverProfile @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@index([driverId, recordedAt])
+}
+
+model DeliveryStatusUpdate {
+  id         String         @id @default(uuid()) @db.Uuid
+  deliveryId String         @db.Uuid
+  status     DeliveryStatus
+  note       String?
+  createdAt  DateTime       @default(now())
+
+  delivery Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+
+  @@index([deliveryId, createdAt])
+}
