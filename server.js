@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import cookieParser from "cookie-parser";
 import authRouter from "./src/routes/auth.routes.js";
+import { errorHandler } from "./src/middleware/error.middleware.js";
 
 const app = express();
 const port = Number.parseInt(process.env.PORT ?? "3000", 10);
@@ -23,15 +24,7 @@ app.use((_req, res) => {
   res.status(404).json({ error: "Route not found" });
 });
 
-app.use((error, _req, res, _next) => {
-  console.error(error);
-
-  if (error instanceof SyntaxError && "body" in error) {
-    return res.status(400).json({ error: "Invalid JSON body" });
-  }
-
-  return res.status(500).json({ error: "Internal server error" });
-});
+app.use(errorHandler);
 
 app.listen(port, () => {
   console.log(`Best Kitchen Delivery API listening on port ${port}`);

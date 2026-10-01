@@ -1,12 +1,5 @@
 import jwt from "jsonwebtoken";
-
-function getJwtSecret() {
-  const secret = process.env.JWT_SECRET;
-  if (!secret) {
-    throw new Error("JWT_SECRET must be set");
-  }
-  return secret;
-}
+import { verifyAccessToken } from "../services/token.services.js";
 
 export function requireAuth(req, res, next) {
   const token = req.cookies?.accessToken;
@@ -15,12 +8,7 @@ export function requireAuth(req, res, next) {
   }
 
   try {
-    const payload = jwt.verify(token, getJwtSecret());
-    if (typeof payload !== "object" || typeof payload.sub !== "string") {
-      return res.status(401).json({ error: "Invalid or expired session" });
-    }
-
-    req.auth = { userId: payload.sub };
+    req.auth = verifyAccessToken(token);
     return next();
   } catch (error) {
     if (error instanceof jwt.JsonWebTokenError || error instanceof jwt.TokenExpiredError) {
@@ -28,21 +16,4 @@ export function requireAuth(req, res, next) {
     }
     return next(error);
   }
-}
-
-export function getAuthCookieOptions() {
-  return {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-  };
-}
-
-export function createAccessToken(userId) {
-  return jwt.sign({}, getJwtSecret(), {
-    subject: userId,
-    expiresIn: "7d",
-  });
 }
