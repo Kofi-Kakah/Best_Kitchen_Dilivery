@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import cookieParser from "cookie-parser";
+import authRouter from "./src/routes/auth.routes.js";
 
 const app = express();
 const port = Number.parseInt(process.env.PORT ?? "3000", 10);
@@ -12,6 +13,7 @@ if (!Number.isInteger(port) || port < 1 || port > 65535) {
 app.disable("x-powered-by");
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
+app.use("/api/auth", authRouter);
 
 app.get("/health", (_req, res) => {
   res.status(200).json({ status: "ok" });

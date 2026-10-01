@@ -4,12 +4,12 @@
   "description": "",
   "main": "server.js",
   "scripts": {
-    "dev": "nodemon src/server.ts"
+    "dev": "nodemon --exec tsx server.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-    "type": "module",
+  "type": "module",
   "devDependencies": {
     "@types/node": "^26.6.3",
     "@types/pg": "^8.23.1",
@@ -25,6 +25,7 @@
     "dotenv": "^18.0.5",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
+    "nodemon": "^3.1.14",
     "pg": "^8.23.1"
   }
 }
