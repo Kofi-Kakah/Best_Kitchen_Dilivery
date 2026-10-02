@@ -7,5 +7,5 @@ if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) {
 }
 
 app.listen(PORT, () => {
-  console.log(`Best Kitchen Delivery API listening on port http://localhost:${PORT}`);
+  console.log(`Best Kitchen Delivery API listening on PORT: http://localhost:${PORT}`);
 });
