@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import cookieParser from "cookie-parser";
 import authRouter from "./src/routes/auth.routes.js";
+import restaurantRouter from "./src/routes/restaurant.routes.js";
 import { errorHandler } from "./src/middleware/error.middleware.js";
 
 const app = express();
@@ -15,6 +16,7 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/api/auth", authRouter);
+app.use("/api/restaurants", restaurantRouter);
 
 app.use((_req, res) => {
   res.status(404).json({ error: "Route not found" });
