@@ -113,7 +113,7 @@ HTTP client / Socket.IO client
 ### Install
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/Kofi-Kakah/Best_Kitchen_Dilivery.git
 cd Best_Kitchen_Dilivery
 npm ci
 ```
